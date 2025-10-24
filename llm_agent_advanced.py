@@ -226,23 +226,90 @@ IMPORTANT:
             }
     
     def should_request_decision(self, current_prices: Dict, last_prices: Dict,
-                               time_since_last: float, decision_interval: float) -> bool:
-        """Determine if we should request a new decision"""
-        # Regular intervals
+                               time_since_last: float, decision_interval: float,
+                               open_positions: List = None) -> tuple:
+        """
+        Multi-level intelligent wake-up mechanism
+        
+        Returns:
+            (should_decide: bool, reason: str)
+        """
+        from config import (VOLATILITY_THRESHOLD, EMERGENCY_THRESHOLD, 
+                          POSITION_RISK_THRESHOLD, MARKET_VOLATILITY_COINS, COOLDOWN_SECONDS)
+        
+        # ===== Level 0: Cooldown check =====
+        # Prevent too frequent LLM calls
+        if time_since_last < COOLDOWN_SECONDS:
+            return False, "cooldown_active"
+        
+        # ===== Level 1: Scheduled trigger (lowest priority) =====
         if time_since_last >= decision_interval:
-            return True
+            return True, "scheduled_interval"
         
-        # Volatility trigger
+        # ===== Level 2: Market volatility triggers =====
         if not last_prices:
-            return True
+            return True, "first_run"
         
+        # 2a. Single coin emergency volatility (>5%)
         for symbol, current_price in current_prices.items():
             if symbol in last_prices:
-                price_change = abs(current_price - last_prices[symbol]) / last_prices[symbol]
-                if price_change > 0.03:  # 3% change
-                    return True
+                change_pct = abs(current_price - last_prices[symbol]) / last_prices[symbol]
+                if change_pct > EMERGENCY_THRESHOLD:
+                    return True, f"emergency_volatility_{symbol}_{change_pct:.1%}"
         
-        return False
+        # 2b. Market-wide volatility (multiple coins >2% volatility)
+        volatile_coins = []
+        for symbol, current_price in current_prices.items():
+            if symbol in last_prices:
+                change_pct = abs(current_price - last_prices[symbol]) / last_prices[symbol]
+                if change_pct > VOLATILITY_THRESHOLD:
+                    volatile_coins.append((symbol, change_pct))
+        
+        if len(volatile_coins) >= MARKET_VOLATILITY_COINS:
+            coins_str = ', '.join([f"{s}:{c:.1%}" for s, c in volatile_coins[:3]])
+            return True, f"market_volatility_{len(volatile_coins)}_coins_({coins_str})"
+        
+        # ===== Level 3: Position risk triggers (highest priority) =====
+        if open_positions:
+            for pos in open_positions:
+                symbol = pos['symbol']
+                if symbol not in current_prices or symbol not in last_prices:
+                    continue
+                
+                current_price = current_prices[symbol]
+                last_price = last_prices[symbol]
+                change_pct = (current_price - last_price) / last_price
+                
+                # Check if price hit LLM-defined targets
+                if 'target_price' in pos and pos['target_price']:
+                    if pos['type'] == 'long' and current_price >= pos['target_price']:
+                        return True, f"target_reached_{symbol}_${current_price:.2f}"
+                    elif pos['type'] == 'short' and current_price <= pos['target_price']:
+                        return True, f"target_reached_{symbol}_${current_price:.2f}"
+                
+                if 'stop_loss' in pos and pos['stop_loss']:
+                    if pos['type'] == 'long' and current_price <= pos['stop_loss']:
+                        return True, f"stop_loss_hit_{symbol}_${current_price:.2f}"
+                    elif pos['type'] == 'short' and current_price >= pos['stop_loss']:
+                        return True, f"stop_loss_hit_{symbol}_${current_price:.2f}"
+                
+                # Position risk: price moving against position
+                if pos['type'] == 'long' and change_pct < -POSITION_RISK_THRESHOLD:
+                    return True, f"position_risk_long_{symbol}_{change_pct:.1%}"
+                elif pos['type'] == 'short' and change_pct > POSITION_RISK_THRESHOLD:
+                    return True, f"position_risk_short_{symbol}_{change_pct:.1%}"
+        
+        # ===== Level 4: Time decay trigger =====
+        # Lower threshold if significant time passed
+        if time_since_last > decision_interval * 0.6:  # After 60% of interval
+            decay_threshold = VOLATILITY_THRESHOLD * 0.75  # Lower to 1.5%
+            for symbol, current_price in current_prices.items():
+                if symbol in last_prices:
+                    change_pct = abs(current_price - last_prices[symbol]) / last_prices[symbol]
+                    if change_pct > decay_threshold:
+                        return True, f"decay_trigger_{symbol}_{change_pct:.1%}"
+        
+        return False, "no_trigger"
 
 
 if __name__ == "__main__":

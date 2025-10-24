@@ -16,7 +16,8 @@ class Position:
     """Represents a trading position"""
     
     def __init__(self, symbol: str, position_type: PositionType, size: float, 
-                 entry_price: float, leverage: float, timestamp: datetime):
+                 entry_price: float, leverage: float, timestamp: datetime,
+                 target_price: float = None, stop_loss: float = None):
         self.symbol = symbol
         self.position_type = position_type
         self.size = size  # Amount in USD
@@ -26,6 +27,9 @@ class Position:
         self.exit_price = None
         self.exit_timestamp = None
         self.pnl = 0.0
+        # LLM-defined targets
+        self.target_price = target_price  # Take profit target
+        self.stop_loss = stop_loss        # Stop loss level
         
     def calculate_pnl(self, current_price: float) -> float:
         """Calculate current P&L for the position"""
@@ -49,8 +53,25 @@ class Position:
             'leverage': self.leverage,
             'pnl': self.pnl,
             'timestamp': self.timestamp.isoformat(),
-            'exit_timestamp': self.exit_timestamp.isoformat() if self.exit_timestamp else None
+            'exit_timestamp': self.exit_timestamp.isoformat() if self.exit_timestamp else None,
+            'target_price': self.target_price,
+            'stop_loss': self.stop_loss
         }
+    
+    def check_targets(self, current_price: float) -> str:
+        """Check if price hit target or stop loss"""
+        if self.target_price and self.stop_loss:
+            if self.position_type == PositionType.LONG:
+                if current_price >= self.target_price:
+                    return "target_reached"
+                elif current_price <= self.stop_loss:
+                    return "stop_loss_hit"
+            else:  # SHORT
+                if current_price <= self.target_price:
+                    return "target_reached"
+                elif current_price >= self.stop_loss:
+                    return "stop_loss_hit"
+        return "none"
 
 
 class TradingSimulator:
@@ -86,7 +107,8 @@ class TradingSimulator:
         return self.capital
     
     def open_position(self, symbol: str, position_type: str, size: float, 
-                     current_price: float, leverage: float = 1.0) -> Optional[Position]:
+                     current_price: float, leverage: float = 1.0,
+                     target_price: float = None, stop_loss: float = None) -> Optional[Position]:
         """
         Open a new trading position
         
@@ -96,6 +118,8 @@ class TradingSimulator:
             size: Position size in USD
             current_price: Current market price
             leverage: Leverage multiplier (1-max_leverage)
+            target_price: LLM-defined take profit target
+            stop_loss: LLM-defined stop loss level
             
         Returns:
             Position object if successful, None otherwise
@@ -123,7 +147,9 @@ class TradingSimulator:
             size=size,
             entry_price=current_price,
             leverage=leverage,
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
+            target_price=target_price,
+            stop_loss=stop_loss
         )
         
         self.open_positions.append(position)

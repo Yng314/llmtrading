@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 import signal
 import sys
+import argparse
 from typing import Dict
 import threading
 
@@ -19,14 +20,15 @@ from technical_analysis import analyze_market
 from llm_agent_advanced import AdvancedTradingAgent
 from logger import TradingLogger
 from web_server import update_trading_data, update_llm_conversation, run_server
+from data_persistence import DataPersistence
 
 
 class AdvancedTradingBot:
     """Advanced trading bot with structured LLM communication"""
     
-    def __init__(self):
+    def __init__(self, load_saved_state: bool = True):
+        self.persistence = DataPersistence()
         self.api = CryptoAPI()
-        self.simulator = TradingSimulator(INITIAL_CAPITAL, MAX_LEVERAGE)
         self.agent = AdvancedTradingAgent()
         self.logger = TradingLogger()
         
@@ -35,6 +37,26 @@ class AdvancedTradingBot:
         self.last_prices = {}
         self.iteration_count = 0
         
+        # Price and value history for charts
+        self.value_history = []
+        self.price_history = {}
+        
+        # Try to load saved state
+        if load_saved_state:
+            saved_state = self.persistence.load_state()
+            if saved_state:
+                self.simulator = self.persistence.restore_simulator(saved_state)
+                self.iteration_count = saved_state['iteration_count']
+                self.value_history = saved_state.get('value_history', [])
+                self.price_history = saved_state.get('price_history', {})
+                self.logger.log("✅ Resumed from saved state")
+            else:
+                self.simulator = TradingSimulator(INITIAL_CAPITAL, MAX_LEVERAGE)
+                self.logger.log("ℹ️  Starting fresh (no saved state)")
+        else:
+            self.simulator = TradingSimulator(INITIAL_CAPITAL, MAX_LEVERAGE)
+            self.logger.log("🆕 Starting fresh (restart mode)")
+        
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
     
@@ -42,16 +64,33 @@ class AdvancedTradingBot:
         """Handle shutdown signals"""
         if not self.running:
             sys.exit(0)
-        print("\n\nReceived shutdown signal. Closing all positions and exiting...")
+        print("\n\nReceived shutdown signal. Saving state and exiting...")
         self.running = False
+        # Save state before exit
+        self._save_state()
     
-    def execute_actions(self, actions: list, current_prices: Dict[str, float]):
+    def _save_state(self):
+        """Save current state to disk"""
+        try:
+            self.persistence.save_state(
+                simulator=self.simulator,
+                value_history=self.value_history,
+                price_history=self.price_history,
+                iteration_count=self.iteration_count
+            )
+        except Exception as e:
+            print(f"❌ Error saving state: {e}")
+    
+    def execute_actions(self, actions: list, current_prices: Dict[str, float], chain_of_thought: Dict = None):
         """Execute trading actions from LLM decision"""
         if not actions:
             self.logger.log("No actions to execute")
             return
             
         self.logger.log(f"Processing {len(actions)} action(s)...")
+        
+        # Extract CoT for target prices and stop losses
+        cot = chain_of_thought or {}
         
         for i, action_data in enumerate(actions, 1):
             try:
@@ -78,15 +117,27 @@ class AdvancedTradingBot:
                         self.logger.log(f"  ⚠️ Skipping: {symbol} not in current prices")
                         continue
                     
+                    # Extract target_price and stop_loss from chain of thought
+                    target_price = None
+                    stop_loss = None
+                    if symbol in cot:
+                        target_price = cot[symbol].get('target_price')
+                        stop_loss = cot[symbol].get('stop_loss')
+                    
+                    target_str = f", Target: ${target_price:.2f}" if target_price else ""
+                    stop_str = f", Stop Loss: ${stop_loss:.2f}" if stop_loss else ""
+                    
                     self.logger.log(f"  📈 Opening {position_type.upper()} position: {symbol} ${size:.2f} "
-                                  f"(Leverage: {leverage}x) - Reason: {reason}")
+                                  f"(Leverage: {leverage}x){target_str}{stop_str} - Reason: {reason}")
                     
                     position = self.simulator.open_position(
                         symbol=symbol,
                         position_type=position_type,
                         size=size,
                         current_price=current_prices[symbol],
-                        leverage=leverage
+                        leverage=leverage,
+                        target_price=target_price,
+                        stop_loss=stop_loss
                     )
                     
                     if position:
@@ -160,15 +211,16 @@ class AdvancedTradingBot:
         
         # 5. Check if we should request LLM decision
         time_since_last = current_time - self.last_decision_time
-        should_decide = self.agent.should_request_decision(
+        should_decide, trigger_reason = self.agent.should_request_decision(
             current_prices, 
             self.last_prices,
             time_since_last,
-            DECISION_INTERVAL
+            DECISION_INTERVAL,
+            open_positions
         )
         
         if should_decide:
-            self.logger.log("\n=== Requesting LLM Decision ===")
+            self.logger.log(f"\n=== Requesting LLM Decision (Trigger: {trigger_reason}) ===")
             
             # Create detailed market prompt
             market_prompt = self.agent.create_detailed_market_prompt(
@@ -195,7 +247,7 @@ class AdvancedTradingBot:
             update_llm_conversation(summary, market_prompt, chain_of_thought, actions)
             
             # Execute actions
-            self.execute_actions(actions, current_prices)
+            self.execute_actions(actions, current_prices, chain_of_thought)
             
             self.last_decision_time = current_time
         
@@ -242,6 +294,10 @@ class AdvancedTradingBot:
             for trade in self.simulator.trade_history[-len(self.simulator.closed_positions):]:
                 self.logger.log_trade(trade)
         
+        # Save state before exit
+        self.logger.log("Saving state...")
+        self._save_state()
+        
         # Final statistics
         if current_prices:
             self.logger.create_final_report(self.simulator, current_prices)
@@ -251,11 +307,17 @@ class AdvancedTradingBot:
 
 def run_bot_in_thread(bot: AdvancedTradingBot):
     """Run trading bot in a separate thread"""
-    bot.run(sleep_seconds=30)
+    bot.run(sleep_seconds=10)
 
 
 def main():
     """Main entry point"""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Advanced LLM Crypto Trading Bot')
+    parser.add_argument('--restart', action='store_true', 
+                       help='Start fresh, ignoring any saved state')
+    args = parser.parse_args()
+    
     print("""
 ╔════════════════════════════════════════════════════════════╗
 ║    Advanced LLM Crypto Trading Bot with Model Chat        ║
@@ -266,6 +328,9 @@ def main():
 ║  - Right: Positions & Trades                              ║
 ║                                                            ║
 ║  Press Ctrl+C in terminal to stop                         ║
+║                                                            ║
+║  Options:                                                  ║
+║    --restart    Start fresh, clear saved state            ║
 ╚════════════════════════════════════════════════════════════╝
     """)
     
@@ -275,8 +340,13 @@ def main():
         print("\n⚠️  WARNING: DASHSCOPE_API_KEY not set!")
         print("LLM decisions will not work. Set API key in .env file.\n")
     
-    # Create bot
-    bot = AdvancedTradingBot()
+    # Delete saved state if restart flag is set
+    if args.restart:
+        print("🔄 Restart mode: Clearing saved state...\n")
+        DataPersistence().delete_state()
+    
+    # Create bot (will load saved state if available and not in restart mode)
+    bot = AdvancedTradingBot(load_saved_state=not args.restart)
     
     # Run bot in background thread
     bot_thread = threading.Thread(target=run_bot_in_thread, args=(bot,), daemon=True)

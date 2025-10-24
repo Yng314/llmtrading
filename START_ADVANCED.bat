@@ -1,38 +1,23 @@
 @echo off
-chcp 65001 > nul
 echo ========================================
-echo   Advanced LLM Crypto Trading Bot
-echo   With Model Chat Interface
-echo ========================================
-echo.
-echo Features:
-echo   - Detailed market data (time series)
-echo   - Structured LLM output (Summary + CoT + Actions)
-echo   - Model Chat panel (real-time LLM decisions)
-echo.
-echo Web Dashboard Layout:
-echo   Left   : Stats and Charts
-echo   Middle : Model Chat (QWEN3 MAX)
-echo   Right  : Positions and Trades
-echo.
-echo Dashboard URL: http://127.0.0.1:5000
-echo.
-echo Press Ctrl+C ONCE to stop gracefully
+echo Starting Advanced LLM Trading Bot
 echo ========================================
 echo.
 
+:: Activate conda environment
 call conda activate d:\workspace\llmtrading\.conda
-if errorlevel 1 (
-    echo Error: Could not activate conda environment
-    pause
-    exit /b 1
+
+:: Check if --restart flag is provided
+if "%1"=="--restart" (
+    echo Starting in RESTART mode (clearing saved data)...
+    echo.
+    python main_advanced.py --restart
+) else (
+    echo Starting in RESUME mode (loading saved data if available)...
+    echo.
+    echo To start fresh, use: START_ADVANCED.bat --restart
+    echo.
+    python main_advanced.py
 )
 
-python main_advanced.py
-
-echo.
-echo ========================================
-echo Bot stopped. Check logs/ folder.
-echo ========================================
 pause
-

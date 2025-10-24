@@ -18,7 +18,11 @@ TRADING_PAIRS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'ADAUSDT']
 LLM_MODEL = 'qwen3-max'
 LLM_TEMPERATURE = 0.7
 
-# Token optimization settings
-VOLATILITY_THRESHOLD = 0.02  # 2% price change triggers LLM call
+# Token optimization settings - Multi-level wake-up thresholds
+VOLATILITY_THRESHOLD = 0.02  # 2% normal volatility (普通波动)
+EMERGENCY_THRESHOLD = 0.05   # 5% emergency volatility (紧急波动)
+POSITION_RISK_THRESHOLD = 0.02  # 2% for positions (持仓风险阈值)
+MARKET_VOLATILITY_COINS = 3  # Number of coins for market-wide volatility (联动波动币种数)
+COOLDOWN_SECONDS = 30  # Cooldown period after LLM call (冷却时间)
 MAX_HISTORY_ITEMS = 20  # Maximum historical data points to keep
 

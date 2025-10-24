@@ -497,7 +497,9 @@
                     borderColor: '#667eea',
                     backgroundColor: 'rgba(102, 126, 234, 0.1)',
                     fill: true,
-                    tension: 0.4
+                    tension: 0.4,
+                    pointRadius: 0,  // Remove circles on data points
+                    pointHoverRadius: 4  // Show small circle on hover
                 }]
             },
             options: {
@@ -624,7 +626,9 @@
                     borderColor: colors[i % colors.length],
                     backgroundColor: 'transparent',
                     tension: 0.4,
-                    borderWidth: 2
+                    borderWidth: 2,
+                    pointRadius: 0,  // Remove circles on data points
+                    pointHoverRadius: 4  // Show small circle on hover
                 };
             });
             

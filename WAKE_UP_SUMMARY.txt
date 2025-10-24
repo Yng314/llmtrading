@@ -1,0 +1,107 @@
+========================================
+   智能唤醒机制 - 实施完成
+========================================
+
+✅ 已实施功能：
+
+1. 多级唤醒机制 (5级)
+   - Level 0: 冷却保护 (30秒)
+   - Level 1: 定时触发 (300秒)
+   - Level 2: 市场波动触发 (单币5%/联动3币2%)
+   - Level 3: 持仓风险触发 (LLM目标价/止损价)
+   - Level 4: 时间衰减触发 (1.5%)
+
+2. LLM目标价和止损价保存
+   - Position类增加target_price和stop_loss字段
+   - 自动从LLM的chain_of_thought提取
+   - 持久化保存/恢复
+
+3. 配置参数
+   - VOLATILITY_THRESHOLD = 0.02 (2%)
+   - EMERGENCY_THRESHOLD = 0.05 (5%)
+   - POSITION_RISK_THRESHOLD = 0.02 (2%)
+   - MARKET_VOLATILITY_COINS = 3
+   - COOLDOWN_SECONDS = 30
+
+========================================
+修改文件：
+========================================
+
+✅ trading_simulator.py
+   - Position类增加target_price和stop_loss
+   - 增加check_targets()方法
+   - open_position()接受target_price和stop_loss参数
+
+✅ config.py
+   - 增加多级唤醒阈值配置
+
+✅ llm_agent_advanced.py
+   - 重写should_request_decision()方法
+   - 返回(bool, reason)元组
+   - 实施5级触发逻辑
+
+✅ main_advanced.py
+   - execute_actions()从CoT提取target/stop
+   - 传递给simulator.open_position()
+   - 显示触发原因日志
+
+✅ data_persistence.py
+   - 保存/恢复target_price和stop_loss
+
+========================================
+使用效果：
+========================================
+
+平静市场：
+  - 每300秒触发一次
+  - Token消耗：12次/小时
+  - 成本：¥0.2-0.3/小时
+
+波动市场：
+  - 根据波动自动触发
+  - Token消耗：17-20次/小时
+  - 成本：¥0.4-0.5/小时
+
+有持仓 + 高波动：
+  - 实时监控持仓风险
+  - Token消耗：25-30次/小时
+  - 成本：¥0.6-0.8/小时
+  
+重要：
+  - 达到目标价立即触发
+  - 触及止损价立即触发
+  - 不再延迟最多300秒
+
+========================================
+查看触发原因：
+========================================
+
+tail -f logs/trading_*.log | grep "Trigger:"
+
+示例输出：
+=== Requesting LLM Decision (Trigger: scheduled_interval) ===
+=== Requesting LLM Decision (Trigger: emergency_volatility_BTCUSDT_5.2%) ===
+=== Requesting LLM Decision (Trigger: target_reached_ETHUSDT_$3790.00) ===
+=== Requesting LLM Decision (Trigger: stop_loss_hit_BTCUSDT_$97900.00) ===
+=== Requesting LLM Decision (Trigger: position_risk_long_BNBUSDT_-2.3%) ===
+
+========================================
+立即测试：
+========================================
+
+python main_advanced.py
+
+观察：
+1. 程序启动后会显示触发原因
+2. 有持仓时，价格变化会触发
+3. 达到目标价/止损价会立即触发
+
+========================================
+文档：
+========================================
+
+详细说明：WAKE_UP_MECHANISM.md
+配置调整：config.py
+
+========================================
+
