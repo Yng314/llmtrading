@@ -1,0 +1,15 @@
+[
+  {
+    "total_value": 1050,
+    "total_pnl": 50,
+    "roi_percent": 5.0,
+    "initial_capital": 1000,
+    "current_capital": 950,
+    "open_positions": 1,
+    "closed_positions": 5,
+    "winning_trades": 3,
+    "losing_trades": 2,
+    "win_rate": 60.0,
+    "timestamp": "2025-10-23T18:27:37.047766"
+  }
+]

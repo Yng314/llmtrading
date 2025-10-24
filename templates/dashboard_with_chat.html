@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Crypto Trading Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 20px 24px;
+            margin: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-size: 28px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .status {
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            padding: 0 20px 20px 20px;
+            min-height: calc(100vh - 140px);
+        }
+
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .middle-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            max-height: calc(100vh - 160px);
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .stat-value.positive {
+            color: #10b981;
+        }
+
+        .stat-value.negative {
+            color: #ef4444;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 250px;
+        }
+
+        .chart-container canvas {
+            max-height: 230px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #333;
+        }
+
+        /* LLM Chat Styles */
+        .chat-container {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .chat-message {
+            margin-bottom: 20px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .chat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .chat-model-name {
+            font-weight: 600;
+            color: #667eea;
+            font-size: 14px;
+        }
+
+        .chat-timestamp {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .chat-summary {
+            background: linear-gradient(135deg, #e7f3ff 0%, #f3e7ff 100%);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .chat-expandable {
+            border-top: 1px solid #eee;
+            margin-top: 8px;
+        }
+
+        .chat-toggle {
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            padding: 8px 0;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .chat-toggle:hover {
+            text-decoration: underline;
+        }
+
+        .chat-details {
+            display: none;
+            padding: 12px;
+            background: #f8fafc;
+            border-radius: 8px;
+            margin-top: 8px;
+            font-size: 12px;
+        }
+
+        .chat-details.expanded {
+            display: block;
+        }
+
+        .chat-details-section {
+            margin-bottom: 12px;
+        }
+
+        .chat-details-title {
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 6px;
+        }
+
+        .chat-decisions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .decision-badge {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .decision-badge.long {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .decision-badge.short {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .decision-badge.hold {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .decision-badge.close {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .position-item, .trade-item {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .position-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .symbol {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge.long {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .badge.short {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .position-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .pnl {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .pnl.positive {
+            color: #10b981;
+        }
+
+        .pnl.negative {
+            color: #ef4444;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-size: 14px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(102, 126, 234, 0.5);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(102, 126, 234, 0.8);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 LLM Crypto Trading Dashboard</h1>
+        <div class="status">
+            <div class="status-item">
+                <div class="status-dot"></div>
+                <span>Running</span>
+            </div>
+            <div class="status-item">
+                <span id="lastUpdate">Last update: --:--:--</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Left Panel: Stats & Charts -->
+        <div class="left-panel">
+            <!-- Stats Grid -->
+            <div class="card">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Value</div>
+                        <div class="stat-value" id="totalValue">$0.00</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">P&L</div>
+                        <div class="stat-value" id="totalPnl">$0.00</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">ROI</div>
+                        <div class="stat-value" id="roi">0.00%</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Win Rate</div>
+                        <div class="stat-value" id="winRate">0.00%</div>
+                    </div>
+                </div>
+                
+                <!-- Value Breakdown -->
+                <div style="margin-top: 16px; padding: 12px; background: #f8fafc; border-radius: 8px; font-size: 12px;">
+                    <div style="font-weight: 600; margin-bottom: 8px; color: #667eea;">💰 Value Breakdown:</div>
+                    <div style="display: grid; grid-template-columns: 1fr auto; gap: 4px;">
+                        <span>Cash Available:</span><span id="cashAvail">$0.00</span>
+                        <span>Margin Locked:</span><span id="marginLocked">$0.00</span>
+                        <span>Unrealized P&L:</span><span id="unrealizedPnl" class="pnl">$0.00</span>
+                        <span style="border-top: 1px solid #ddd; padding-top: 4px; font-weight: 600;">Total:</span>
+                        <span style="border-top: 1px solid #ddd; padding-top: 4px; font-weight: 600;" id="totalCalc">$0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Account Value Chart -->
+            <div class="card">
+                <h3 class="section-title">Account Value</h3>
+                <div class="chart-container">
+                    <canvas id="valueChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Price Chart -->
+            <div class="card">
+                <h3 class="section-title">Price Change (%)</h3>
+                <div class="chart-container">
+                    <canvas id="priceChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Middle Panel: Model Chat -->
+        <div class="middle-panel">
+            <div class="card" style="height: fit-content;">
+                <h3 class="section-title">🤖 Model Chat (QWEN3 MAX)</h3>
+                <div class="chat-container" id="chatContainer">
+                    <div class="empty-state">Waiting for LLM decisions...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Positions & Trades -->
+        <div class="right-panel">
+            <!-- Open Positions -->
+            <div class="card">
+                <h3 class="section-title">Open Positions</h3>
+                <div id="positionsContainer">
+                    <div class="empty-state">No open positions</div>
+                </div>
+            </div>
+
+            <!-- Recent Trades -->
+            <div class="card">
+                <h3 class="section-title">Recent Trades</h3>
+                <div id="tradesContainer">
+                    <div class="empty-state">No completed trades yet</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        // Chart configurations
+        const commonOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                }
+            },
+            scales: {
+                x: {
+                    display: true,
+                    grid: { display: false }
+                },
+                y: {
+                    display: true,
+                    grid: { color: 'rgba(0, 0, 0, 0.05)' }
+                }
+            }
+        };
+
+        // Initialize charts
+        const valueChart = new Chart(document.getElementById('valueChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Account Value ($)',
+                    data: [],
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                ...commonOptions,
+                plugins: { ...commonOptions.plugins, legend: { display: false } }
+            }
+        });
+
+        const priceChart = new Chart(document.getElementById('priceChart'), {
+            type: 'line',
+            data: { labels: [], datasets: [] },
+            options: {
+                ...commonOptions,
+                scales: {
+                    ...commonOptions.scales,
+                    y: {
+                        ...commonOptions.scales.y,
+                        ticks: {
+                            callback: function(value) {
+                                return value.toFixed(2) + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        const colors = ['#667eea', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+        // Track last conversation count to avoid unnecessary updates
+        let lastConversationCount = 0;
+
+        // Fetch and update data
+        async function fetchData() {
+            try {
+                const response = await fetch('/api/all');
+                const data = await response.json();
+                
+                updateStats(data.stats, data.positions);
+                updateValueChart(data.value_history);
+                updatePriceChart(data.price_history);
+                updatePositions(data.positions);
+                updateTrades(data.trades);
+                
+                // Only update chat if there are new conversations
+                const currentCount = data.llm_conversations ? data.llm_conversations.length : 0;
+                if (currentCount !== lastConversationCount) {
+                    updateLLMChat(data.llm_conversations);
+                    lastConversationCount = currentCount;
+                }
+                
+                updateTimestamp(data.last_update);
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        function updateStats(stats, positions) {
+            if (!stats || Object.keys(stats).length === 0) return;
+            
+            document.getElementById('totalValue').textContent = '$' + (stats.total_value || 0).toFixed(2);
+            
+            const pnl = stats.total_pnl || 0;
+            const pnlEl = document.getElementById('totalPnl');
+            pnlEl.textContent = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
+            pnlEl.className = 'stat-value ' + (pnl >= 0 ? 'positive' : 'negative');
+            
+            const roi = stats.roi_percent || 0;
+            const roiEl = document.getElementById('roi');
+            roiEl.textContent = (roi >= 0 ? '+' : '') + roi.toFixed(2) + '%';
+            roiEl.className = 'stat-value ' + (roi >= 0 ? 'positive' : 'negative');
+            
+            document.getElementById('winRate').textContent = (stats.win_rate || 0).toFixed(1) + '%';
+            
+            // Update breakdown
+            let totalMargin = 0;
+            let totalUnrealizedPnl = 0;
+            if (positions && positions.length > 0) {
+                positions.forEach(pos => {
+                    totalMargin += pos.size / pos.leverage;
+                    totalUnrealizedPnl += pos.current_pnl;
+                });
+            }
+            
+            document.getElementById('cashAvail').textContent = '$' + (stats.current_capital || 0).toFixed(2);
+            document.getElementById('marginLocked').textContent = '$' + totalMargin.toFixed(2);
+            
+            const unrealizedEl = document.getElementById('unrealizedPnl');
+            unrealizedEl.textContent = (totalUnrealizedPnl >= 0 ? '+$' : '-$') + Math.abs(totalUnrealizedPnl).toFixed(2);
+            unrealizedEl.className = 'pnl ' + (totalUnrealizedPnl >= 0 ? 'positive' : 'negative');
+            
+            const totalCalc = (stats.current_capital || 0) + totalMargin + totalUnrealizedPnl;
+            document.getElementById('totalCalc').textContent = '$' + totalCalc.toFixed(2);
+        }
+
+        function updateValueChart(history) {
+            if (!history || history.length === 0) return;
+            
+            const labels = history.map(h => new Date(h.timestamp).toLocaleTimeString());
+            const data = history.map(h => h.value);
+            
+            valueChart.data.labels = labels;
+            valueChart.data.datasets[0].data = data;
+            valueChart.update('none');
+        }
+
+        function updatePriceChart(priceHistory) {
+            if (!priceHistory || Object.keys(priceHistory).length === 0) return;
+            
+            const symbols = Object.keys(priceHistory);
+            const timestamps = priceHistory[symbols[0]]?.map(p => 
+                new Date(p.timestamp).toLocaleTimeString()
+            ) || [];
+            
+            priceChart.data.labels = timestamps;
+            priceChart.data.datasets = symbols.map((symbol, i) => {
+                const prices = priceHistory[symbol].map(p => p.price);
+                const basePrice = prices[0] || 1;
+                const percentChanges = prices.map(price => ((price - basePrice) / basePrice) * 100);
+                
+                return {
+                    label: symbol,
+                    data: percentChanges,
+                    borderColor: colors[i % colors.length],
+                    backgroundColor: 'transparent',
+                    tension: 0.4,
+                    borderWidth: 2
+                };
+            });
+            
+            priceChart.update('none');
+        }
+
+        function updateLLMChat(conversations) {
+            const container = document.getElementById('chatContainer');
+            
+            if (!conversations || conversations.length === 0) {
+                container.innerHTML = '<div class="empty-state">Waiting for LLM decisions...</div>';
+                return;
+            }
+            
+            // Show last 10 conversations
+            const recent = conversations.slice(-10).reverse();
+            
+            container.innerHTML = recent.map((conv, idx) => {
+                const timestamp = new Date(conv.timestamp).toLocaleTimeString();
+                const actionsCount = conv.actions ? conv.actions.length : 0;
+                
+                return `
+                    <div class="chat-message">
+                        <div class="chat-header">
+                            <span class="chat-model-name">QWEN3 MAX</span>
+                            <span class="chat-timestamp">${timestamp}</span>
+                        </div>
+                        <div class="chat-summary">${conv.summary || 'No summary'}</div>
+                        <div class="chat-decisions">
+                            ${conv.actions ? conv.actions.map(action => `
+                                <span class="decision-badge ${action.position_type || action.action}">
+                                    ${action.symbol} ${action.action.toUpperCase()}
+                                </span>
+                            `).join('') : '<span style="color:#999;font-size:12px;">No actions</span>'}
+                        </div>
+                        <div class="chat-expandable">
+                            <button class="chat-toggle" onclick="toggleDetails(${idx})">
+                                <span id="toggle-icon-${idx}">▶</span> click to expand
+                            </button>
+                            <div class="chat-details" id="details-${idx}">
+                                <div class="chat-details-section">
+                                    <div class="chat-details-title">Chain of Thought:</div>
+                                    <pre style="white-space: pre-wrap; font-size: 11px;">${JSON.stringify(conv.chain_of_thought, null, 2)}</pre>
+                                </div>
+                                <div class="chat-details-section">
+                                    <div class="chat-details-title">User Prompt (truncated):</div>
+                                    <div style="max-height: 200px; overflow-y: auto; font-size: 11px; line-height: 1.4;">
+                                        ${(conv.user_prompt || '').substring(0, 500)}...
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleDetails(idx) {
+            const details = document.getElementById(`details-${idx}`);
+            const icon = document.getElementById(`toggle-icon-${idx}`);
+            
+            if (details.classList.contains('expanded')) {
+                details.classList.remove('expanded');
+                icon.textContent = '▶';
+            } else {
+                details.classList.add('expanded');
+                icon.textContent = '▼';
+            }
+        }
+
+        function updatePositions(positions) {
+            const container = document.getElementById('positionsContainer');
+            
+            if (!positions || positions.length === 0) {
+                container.innerHTML = '<div class="empty-state">No open positions</div>';
+                return;
+            }
+            
+            container.innerHTML = positions.map(pos => `
+                <div class="position-item">
+                    <div class="position-header">
+                        <span class="symbol">${pos.symbol}</span>
+                        <span class="badge ${pos.type}">${pos.type}</span>
+                    </div>
+                    <div class="position-details">
+                        <div class="detail-item"><span>Size:</span><span>$${pos.size.toFixed(2)}</span></div>
+                        <div class="detail-item"><span>Leverage:</span><span>${pos.leverage}x</span></div>
+                        <div class="detail-item"><span>Entry:</span><span>$${pos.entry_price.toFixed(2)}</span></div>
+                        <div class="detail-item"><span>Current:</span><span>$${pos.current_price.toFixed(2)}</span></div>
+                    </div>
+                    <div class="detail-item" style="margin-top: 8px;">
+                        <span>P&L:</span>
+                        <span class="pnl ${pos.current_pnl >= 0 ? 'positive' : 'negative'}">
+                            ${pos.current_pnl >= 0 ? '+' : ''}$${pos.current_pnl.toFixed(2)} (${pos.pnl_percent.toFixed(2)}%)
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateTrades(trades) {
+            const container = document.getElementById('tradesContainer');
+            
+            if (!trades || trades.length === 0) {
+                container.innerHTML = '<div class="empty-state">No completed trades yet</div>';
+                return;
+            }
+            
+            const recent = trades.slice(-5).reverse();
+            
+            container.innerHTML = recent.map(trade => `
+                <div class="trade-item">
+                    <div class="position-header">
+                        <span class="symbol">${trade.symbol}</span>
+                        <span class="badge ${trade.type}">${trade.type}</span>
+                    </div>
+                    <div class="position-details">
+                        <div class="detail-item"><span>Entry:</span><span>$${trade.entry_price.toFixed(2)}</span></div>
+                        <div class="detail-item"><span>Exit:</span><span>$${trade.exit_price.toFixed(2)}</span></div>
+                        <div class="detail-item"><span>Size:</span><span>$${trade.size.toFixed(2)}</span></div>
+                        <div class="detail-item"><span>Leverage:</span><span>${trade.leverage}x</span></div>
+                    </div>
+                    <div class="detail-item" style="margin-top: 8px;">
+                        <span>P&L:</span>
+                        <span class="pnl ${trade.pnl >= 0 ? 'positive' : 'negative'}">
+                            ${trade.pnl >= 0 ? '+' : ''}$${trade.pnl.toFixed(2)}
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateTimestamp(timestamp) {
+            if (!timestamp) return;
+            document.getElementById('lastUpdate').textContent = 
+                'Last update: ' + new Date(timestamp).toLocaleTimeString();
+        }
+
+        // Fetch data every 2 seconds
+        setInterval(fetchData, 2000);
+        fetchData();
+    </script>
+</body>
+</html>
+

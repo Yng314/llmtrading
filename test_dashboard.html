@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Price Chart Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        .chart-container {
+            margin: 20px 0;
+            height: 400px;
+        }
+        h2 {
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .info {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 Price Chart Fix Demo</h1>
+        
+        <div class="info">
+            <strong>说明：</strong>这个demo展示了修复后的价格图表。
+            <br>所有币种显示为百分比变化，从0%开始，可以清楚看到每个币种的涨跌趋势。
+        </div>
+
+        <h2>❌ 修复前：绝对价格（看起来像直线）</h2>
+        <div class="chart-container">
+            <canvas id="oldChart"></canvas>
+        </div>
+
+        <h2>✅ 修复后：百分比变化（清晰可见）</h2>
+        <div class="chart-container">
+            <canvas id="newChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // Simulate price data
+        const mockData = {
+            times: ['10:00', '10:05', '10:10', '10:15', '10:20', '10:25', '10:30'],
+            BTC: [110000, 110500, 110300, 111000, 110800, 111500, 111200],
+            ETH: [3900, 3920, 3910, 3950, 3930, 3960, 3945],
+            BNB: [1130, 1135, 1132, 1140, 1138, 1145, 1142],
+            ADA: [0.65, 0.653, 0.651, 0.658, 0.656, 0.660, 0.659],
+            SOL: [192, 193.5, 192.8, 195, 194, 196, 195.5]
+        };
+
+        const colors = {
+            BTC: '#667eea',
+            ETH: '#10b981',
+            BNB: '#f59e0b',
+            ADA: '#ef4444',
+            SOL: '#8b5cf6'
+        };
+
+        // Old chart (absolute prices)
+        const oldChart = new Chart(document.getElementById('oldChart'), {
+            type: 'line',
+            data: {
+                labels: mockData.times,
+                datasets: [
+                    {
+                        label: 'BTCUSDT',
+                        data: mockData.BTC,
+                        borderColor: colors.BTC,
+                        backgroundColor: 'transparent',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'ETHUSDT',
+                        data: mockData.ETH,
+                        borderColor: colors.ETH,
+                        backgroundColor: 'transparent',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'BNBUSDT',
+                        data: mockData.BNB,
+                        borderColor: colors.BNB,
+                        backgroundColor: 'transparent',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'ADAUSDT',
+                        data: mockData.ADA,
+                        borderColor: colors.ADA,
+                        backgroundColor: 'transparent',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'SOLUSDT',
+                        data: mockData.SOL,
+                        borderColor: colors.SOL,
+                        backgroundColor: 'transparent',
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '问题：BTC价格太高，其他币种看起来像直线'
+                    }
+                }
+            }
+        });
+
+        // New chart (percentage changes)
+        function calculatePercentChange(prices) {
+            const base = prices[0];
+            return prices.map(p => ((p - base) / base) * 100);
+        }
+
+        const newChart = new Chart(document.getElementById('newChart'), {
+            type: 'line',
+            data: {
+                labels: mockData.times,
+                datasets: [
+                    {
+                        label: 'BTCUSDT',
+                        data: calculatePercentChange(mockData.BTC),
+                        borderColor: colors.BTC,
+                        backgroundColor: 'transparent',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'ETHUSDT',
+                        data: calculatePercentChange(mockData.ETH),
+                        borderColor: colors.ETH,
+                        backgroundColor: 'transparent',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'BNBUSDT',
+                        data: calculatePercentChange(mockData.BNB),
+                        borderColor: colors.BNB,
+                        backgroundColor: 'transparent',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'ADAUSDT',
+                        data: calculatePercentChange(mockData.ADA),
+                        borderColor: colors.ADA,
+                        backgroundColor: 'transparent',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'SOLUSDT',
+                        data: calculatePercentChange(mockData.SOL),
+                        borderColor: colors.SOL,
+                        backgroundColor: 'transparent',
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '修复：所有币种显示百分比变化，趋势清晰可见'
+                    }
+                },
+                scales: {
+                    y: {
+                        ticks: {
+                            callback: function(value) {
+                                return value.toFixed(2) + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
+

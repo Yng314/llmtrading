@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Crypto Trading Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        .container {
+            display: flex;
+            min-height: calc(100vh - 140px);
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .left-panel {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            max-height: calc(100vh - 160px);
+        }
+
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            max-height: calc(100vh - 160px);
+        }
+        
+        .right-panel::-webkit-scrollbar,
+        .left-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .right-panel::-webkit-scrollbar-track,
+        .left-panel::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        
+        .right-panel::-webkit-scrollbar-thumb,
+        .left-panel::-webkit-scrollbar-thumb {
+            background: rgba(102, 126, 234, 0.5);
+            border-radius: 4px;
+        }
+        
+        .right-panel::-webkit-scrollbar-thumb:hover,
+        .left-panel::-webkit-scrollbar-thumb:hover {
+            background: rgba(102, 126, 234, 0.8);
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 20px 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-size: 28px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .status {
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .stat-value.positive {
+            color: #10b981;
+        }
+
+        .stat-value.negative {
+            color: #ef4444;
+        }
+
+        .chart-container {
+            flex: 1;
+            position: relative;
+            min-height: 300px;
+            max-height: 450px;
+            overflow: hidden;
+        }
+        
+        .chart-container canvas {
+            max-height: 400px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #333;
+        }
+
+        .position-item, .trade-item {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+            border-left: 4px solid #667eea;
+        }
+
+        .position-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .symbol {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge.long {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .badge.short {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .position-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .pnl {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .pnl.positive {
+            color: #10b981;
+        }
+
+        .pnl.negative {
+            color: #ef4444;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-size: 14px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 LLM Crypto Trading Dashboard</h1>
+        <div class="status">
+            <div class="status-item">
+                <div class="status-dot"></div>
+                <span>Running</span>
+            </div>
+            <div class="status-item">
+                <span id="lastUpdate">Last update: --:--:--</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Left Panel: Charts -->
+        <div class="left-panel">
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Value</div>
+                    <div class="stat-value" id="totalValue">$0.00</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">P&L</div>
+                    <div class="stat-value" id="totalPnl">$0.00</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">ROI</div>
+                    <div class="stat-value" id="roi">0.00%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Win Rate</div>
+                    <div class="stat-value" id="winRate">0.00%</div>
+                </div>
+            </div>
+
+            <!-- Account Value Chart -->
+            <div class="card chart-container">
+                <h3 class="section-title">Account Value</h3>
+                <canvas id="valueChart"></canvas>
+            </div>
+
+            <!-- Price Charts -->
+            <div class="card chart-container">
+                <h3 class="section-title">Price Change (%)</h3>
+                <canvas id="priceChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Right Panel: Info -->
+        <div class="right-panel">
+            <!-- Open Positions -->
+            <div class="card">
+                <h3 class="section-title">Open Positions</h3>
+                <div id="positionsContainer">
+                    <div class="loading">Loading positions...</div>
+                </div>
+            </div>
+
+            <!-- Completed Trades -->
+            <div class="card">
+                <h3 class="section-title">Recent Trades</h3>
+                <div id="tradesContainer">
+                    <div class="loading">Loading trades...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Chart configurations
+        const commonOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index',
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                }
+            },
+            scales: {
+                x: {
+                    display: true,
+                    grid: {
+                        display: false
+                    }
+                },
+                y: {
+                    display: true,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
+                    }
+                }
+            }
+        };
+
+        // Initialize charts
+        const valueChart = new Chart(document.getElementById('valueChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Account Value ($)',
+                    data: [],
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                ...commonOptions,
+                plugins: {
+                    ...commonOptions.plugins,
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+
+        const priceChart = new Chart(document.getElementById('priceChart'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: []
+            },
+            options: {
+                ...commonOptions,
+                scales: {
+                    ...commonOptions.scales,
+                    y: {
+                        ...commonOptions.scales.y,
+                        ticks: {
+                            callback: function(value) {
+                                return value.toFixed(2) + '%';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    ...commonOptions.plugins,
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + 
+                                       context.parsed.y.toFixed(2) + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        const colors = ['#667eea', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+        // Update data
+        async function fetchData() {
+            try {
+                const response = await fetch('/api/all');
+                const data = await response.json();
+                
+                updateStats(data.stats);
+                updateValueChart(data.value_history);
+                updatePriceChart(data.price_history);
+                updatePositions(data.positions);
+                updateTrades(data.trades);
+                updateTimestamp(data.last_update);
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            }
+        }
+
+        function updateStats(stats) {
+            if (!stats || Object.keys(stats).length === 0) return;
+            
+            document.getElementById('totalValue').textContent = 
+                '$' + (stats.total_value || 0).toFixed(2);
+            
+            const pnl = stats.total_pnl || 0;
+            const pnlEl = document.getElementById('totalPnl');
+            pnlEl.textContent = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
+            pnlEl.className = 'stat-value ' + (pnl >= 0 ? 'positive' : 'negative');
+            
+            const roi = stats.roi_percent || 0;
+            const roiEl = document.getElementById('roi');
+            roiEl.textContent = (roi >= 0 ? '+' : '') + roi.toFixed(2) + '%';
+            roiEl.className = 'stat-value ' + (roi >= 0 ? 'positive' : 'negative');
+            
+            document.getElementById('winRate').textContent = 
+                (stats.win_rate || 0).toFixed(1) + '%';
+        }
+
+        function updateValueChart(history) {
+            if (!history || history.length === 0) return;
+            
+            const labels = history.map(h => new Date(h.timestamp).toLocaleTimeString());
+            const data = history.map(h => h.value);
+            
+            valueChart.data.labels = labels;
+            valueChart.data.datasets[0].data = data;
+            valueChart.update('none');
+        }
+
+        function updatePriceChart(priceHistory) {
+            if (!priceHistory || Object.keys(priceHistory).length === 0) return;
+            
+            const symbols = Object.keys(priceHistory);
+            const timestamps = priceHistory[symbols[0]]?.map(p => 
+                new Date(p.timestamp).toLocaleTimeString()
+            ) || [];
+            
+            priceChart.data.labels = timestamps;
+            priceChart.data.datasets = symbols.map((symbol, i) => {
+                const prices = priceHistory[symbol].map(p => p.price);
+                const basePrice = prices[0] || 1;
+                
+                // Calculate percentage change from first price
+                const percentChanges = prices.map(price => 
+                    ((price - basePrice) / basePrice) * 100
+                );
+                
+                return {
+                    label: symbol,
+                    data: percentChanges,
+                    borderColor: colors[i % colors.length],
+                    backgroundColor: 'transparent',
+                    tension: 0.4,
+                    borderWidth: 2
+                };
+            });
+            
+            priceChart.update('none');
+        }
+
+        function updatePositions(positions) {
+            const container = document.getElementById('positionsContainer');
+            
+            if (!positions || positions.length === 0) {
+                container.innerHTML = '<div class="empty-state">No open positions</div>';
+                return;
+            }
+            
+            container.innerHTML = positions.map(pos => `
+                <div class="position-item">
+                    <div class="position-header">
+                        <span class="symbol">${pos.symbol}</span>
+                        <span class="badge ${pos.type}">${pos.type}</span>
+                    </div>
+                    <div class="position-details">
+                        <div class="detail-item">
+                            <span>Size:</span>
+                            <span>$${pos.size.toFixed(2)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span>Leverage:</span>
+                            <span>${pos.leverage}x</span>
+                        </div>
+                        <div class="detail-item">
+                            <span>Entry:</span>
+                            <span>$${pos.entry_price.toFixed(2)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span>Current:</span>
+                            <span>$${pos.current_price.toFixed(2)}</span>
+                        </div>
+                    </div>
+                    <div class="detail-item" style="margin-top: 8px;">
+                        <span>P&L:</span>
+                        <span class="pnl ${pos.current_pnl >= 0 ? 'positive' : 'negative'}">
+                            ${pos.current_pnl >= 0 ? '+' : ''}$${pos.current_pnl.toFixed(2)} 
+                            (${pos.pnl_percent.toFixed(2)}%)
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateTrades(trades) {
+            const container = document.getElementById('tradesContainer');
+            
+            if (!trades || trades.length === 0) {
+                container.innerHTML = '<div class="empty-state">No completed trades yet</div>';
+                return;
+            }
+            
+            const recentTrades = trades.slice(-10).reverse();
+            
+            container.innerHTML = recentTrades.map(trade => `
+                <div class="trade-item">
+                    <div class="position-header">
+                        <span class="symbol">${trade.symbol}</span>
+                        <span class="badge ${trade.type}">${trade.type}</span>
+                    </div>
+                    <div class="position-details">
+                        <div class="detail-item">
+                            <span>Entry:</span>
+                            <span>$${trade.entry_price.toFixed(2)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span>Exit:</span>
+                            <span>$${trade.exit_price.toFixed(2)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span>Size:</span>
+                            <span>$${trade.size.toFixed(2)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span>Leverage:</span>
+                            <span>${trade.leverage}x</span>
+                        </div>
+                    </div>
+                    <div class="detail-item" style="margin-top: 8px;">
+                        <span>P&L:</span>
+                        <span class="pnl ${trade.pnl >= 0 ? 'positive' : 'negative'}">
+                            ${trade.pnl >= 0 ? '+' : ''}$${trade.pnl.toFixed(2)}
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateTimestamp(timestamp) {
+            if (!timestamp) return;
+            const date = new Date(timestamp);
+            document.getElementById('lastUpdate').textContent = 
+                'Last update: ' + date.toLocaleTimeString();
+        }
+
+        // Fetch data every 2 seconds
+        setInterval(fetchData, 2000);
+        fetchData(); // Initial fetch
+    </script>
+</body>
+</html>
+
