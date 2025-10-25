@@ -1,0 +1,138 @@
+[
+  {
+    "action": "open",
+    "symbol": "ADAUSDT",
+    "type": "short",
+    "size": 1136.36,
+    "price": 0.6536023694546,
+    "leverage": 18.0,
+    "quantity": 31062.0,
+    "timestamp": "2025-10-25T19:48:02.714572",
+    "order_id": 340415875
+  },
+  {
+    "action": "open",
+    "symbol": "ETHUSDT",
+    "type": "short",
+    "size": 950.0,
+    "price": 3957.0,
+    "leverage": 15.0,
+    "quantity": 3.601,
+    "timestamp": "2025-10-25T19:48:05.647306",
+    "order_id": 5865544106
+  },
+  {
+    "action": "open",
+    "symbol": "SOLUSDT",
+    "type": "short",
+    "size": 1100.0,
+    "price": 193.86,
+    "leverage": 20.0,
+    "quantity": 113.0,
+    "timestamp": "2025-10-25T19:48:08.893177",
+    "order_id": 899250787
+  },
+  {
+    "action": "close",
+    "symbol": "ADAUSDT",
+    "type": "short",
+    "entry_price": 0.6536023694546,
+    "exit_price": 0.6579,
+    "size": 1127.8998222221549,
+    "leverage": 18,
+    "pnl": -121.9680492,
+    "timestamp": "2025-10-25T19:53:11.925672",
+    "order_id": 340453273
+  },
+  {
+    "action": "open",
+    "symbol": "BTCUSDT",
+    "type": "long",
+    "size": 900.0,
+    "price": 111569.5,
+    "leverage": 15.0,
+    "quantity": 0.121,
+    "timestamp": "2025-10-25T19:53:15.116172",
+    "order_id": 7085790376
+  },
+  {
+    "action": "close",
+    "symbol": "SOLUSDT",
+    "type": "short",
+    "entry_price": 193.86,
+    "exit_price": 194.31,
+    "size": 1095.309,
+    "leverage": 20,
+    "pnl": -33.83711324,
+    "timestamp": "2025-10-25T19:58:15.978399",
+    "order_id": 899482730
+  },
+  {
+    "action": "open",
+    "symbol": "BTCUSDT",
+    "type": "long",
+    "size": 457.83,
+    "price": 111592.1236263,
+    "leverage": 15.0,
+    "quantity": 0.182,
+    "timestamp": "2025-10-25T19:58:18.859695",
+    "order_id": 7086391580
+  },
+  {
+    "action": "close",
+    "symbol": "BTCUSDT",
+    "type": "long",
+    "entry_price": 111592.1236263,
+    "exit_price": 111666.05,
+    "size": 1353.98443333244,
+    "leverage": 15,
+    "pnl": 5.25800251,
+    "timestamp": "2025-10-25T20:03:17.820392",
+    "order_id": 7086978914
+  },
+  {
+    "action": "open",
+    "symbol": "ADAUSDT",
+    "type": "short",
+    "size": 480.0,
+    "price": 0.6535028508772,
+    "leverage": 15.0,
+    "quantity": 10944.0,
+    "timestamp": "2025-10-25T20:03:20.515057",
+    "order_id": 340531564
+  },
+  {
+    "action": "open",
+    "symbol": "SOLUSDT",
+    "type": "short",
+    "size": 560.0,
+    "price": 193.79,
+    "leverage": 20.0,
+    "quantity": 58.0,
+    "timestamp": "2025-10-25T20:03:23.253238",
+    "order_id": 899600282
+  },
+  {
+    "action": "close",
+    "symbol": "ADAUSDT",
+    "type": "short",
+    "entry_price": 0.6535028508772,
+    "exit_price": 0.6573,
+    "size": 476.79568000000506,
+    "leverage": 15,
+    "pnl": -38.2728096,
+    "timestamp": "2025-10-25T20:08:24.639806",
+    "order_id": 340571069
+  },
+  {
+    "action": "open",
+    "symbol": "BTCUSDT",
+    "type": "short",
+    "size": 1000.0,
+    "price": 111565.6,
+    "leverage": 15.0,
+    "quantity": 0.134,
+    "timestamp": "2025-10-25T20:08:28.013161",
+    "order_id": 7087580656
+  }
+]
