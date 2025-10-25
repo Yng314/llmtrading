@@ -134,5 +134,51 @@
     "quantity": 0.134,
     "timestamp": "2025-10-25T20:08:28.013161",
     "order_id": 7087580656
+  },
+  {
+    "action": "open",
+    "symbol": "ADAUSDT",
+    "type": "short",
+    "size": 537.39,
+    "price": 0.6535035210694,
+    "leverage": 15.0,
+    "quantity": 12269.0,
+    "timestamp": "2025-10-25T20:13:40.207304",
+    "order_id": 340608902
+  },
+  {
+    "action": "close",
+    "symbol": "ADAUSDT",
+    "type": "short",
+    "entry_price": 0.6535035210694,
+    "exit_price": 0.6573,
+    "size": 534.5223133333645,
+    "leverage": 15,
+    "pnl": -43.98976336,
+    "timestamp": "2025-10-25T20:18:47.974031",
+    "order_id": 340647524
+  },
+  {
+    "action": "close",
+    "symbol": "SOLUSDT",
+    "type": "short",
+    "entry_price": 193.79,
+    "exit_price": 194.44,
+    "size": 561.991,
+    "leverage": 20,
+    "pnl": -33.35745416,
+    "timestamp": "2025-10-25T20:18:50.127265",
+    "order_id": 899951543
+  },
+  {
+    "action": "open",
+    "symbol": "BNBUSDT",
+    "type": "short",
+    "size": 384.95,
+    "price": 1113.0,
+    "leverage": 15.0,
+    "quantity": 5.18,
+    "timestamp": "2025-10-25T20:18:52.982505",
+    "order_id": 686705134
   }
 ]
