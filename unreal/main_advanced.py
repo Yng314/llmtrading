@@ -1,5 +1,6 @@
 """
 Advanced trading bot with detailed LLM communication and Model Chat display
+虚拟交易版本（模拟器）
 """
 
 import time
@@ -9,6 +10,10 @@ import sys
 import argparse
 from typing import Dict
 import threading
+
+# 添加父目录到路径
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import (
     INITIAL_CAPITAL, MAX_LEVERAGE, DECISION_INTERVAL, 
@@ -86,35 +91,28 @@ class AdvancedTradingBot:
         if not actions:
             self.logger.log("No actions to execute")
             return
-            
-        self.logger.log(f"Processing {len(actions)} action(s)...")
-        
-        # Extract CoT for target prices and stop losses
+
         cot = chain_of_thought or {}
+        
+        self.logger.log(f"\nExecuting {len(actions)} actions:")
         
         for i, action_data in enumerate(actions, 1):
             try:
-                self.logger.log(f"\nAction {i}: {action_data}")
-                
                 action = action_data.get('action', '').lower()
                 symbol = action_data.get('symbol', '')
+                reason = action_data.get('reason', '')
                 
-                if not action or not symbol:
-                    self.logger.log(f"  ⚠️ Skipping: missing action or symbol")
+                if not symbol or symbol not in current_prices:
+                    self.logger.log(f"  ⚠️  Action {i}: Invalid symbol '{symbol}' - Skipping")
                     continue
                 
                 if action == 'open':
-                    position_type = action_data.get('position_type', 'long').lower()
+                    position_type = action_data.get('position_type', '').lower()
                     size = float(action_data.get('size', 0))
                     leverage = float(action_data.get('leverage', 1))
-                    reason = action_data.get('reason', 'No reason provided')
                     
                     if size <= 0:
-                        self.logger.log(f"  ⚠️ Skipping: invalid size {size}")
-                        continue
-                    
-                    if symbol not in current_prices:
-                        self.logger.log(f"  ⚠️ Skipping: {symbol} not in current prices")
+                        self.logger.log(f"  ⚠️  Action {i}: Invalid size {size} - Skipping")
                         continue
                     
                     # Extract target_price and stop_loss from chain of thought
@@ -145,6 +143,13 @@ class AdvancedTradingBot:
                         self.logger.log_trade(self.simulator.trade_history[-1])
                     else:
                         self.logger.log(f"  ❌ Failed to open position")
+                        # Log why it failed
+                        available = self.simulator.get_available_capital()
+                        margin_needed = size / leverage
+                        self.logger.log(f"     Available capital: ${available:.2f}")
+                        self.logger.log(f"     Margin needed: ${margin_needed:.2f}")
+                        if margin_needed > available:
+                            self.logger.log(f"     ⚠️  Insufficient capital (need ${margin_needed - available:.2f} more)")
                 
                 elif action == 'close':
                     positions_to_close = [
@@ -153,24 +158,26 @@ class AdvancedTradingBot:
                     ]
                     
                     if not positions_to_close:
-                        self.logger.log(f"  ⚠️ No open position found for {symbol}")
+                        self.logger.log(f"  ⚠️  Action {i}: No open position for {symbol} - Skipping")
                         continue
                     
-                    for position in positions_to_close:
-                        reason = action_data.get('reason', 'No reason provided')
-                        self.logger.log(f"  📉 Closing position: {symbol} - Reason: {reason}")
+                    for pos in positions_to_close:
+                        self.logger.log(f"  📉 Closing {pos.position_type.value.upper()} position: {symbol} - Reason: {reason}")
                         
-                        self.simulator.close_position(position, current_prices[symbol])
-                        self.logger.log(f"  ✅ Position closed successfully")
+                        pnl = self.simulator.close_position(pos, current_prices[symbol])
+                        self.logger.log(f"  ✅ Position closed. P&L: ${pnl:+.2f}")
                         self.logger.log_trade(self.simulator.trade_history[-1])
                 
-                else:
-                    self.logger.log(f"  ⚠️ Unknown action: {action}")
+                elif action == 'hold':
+                    self.logger.log(f"  ⏸️  Hold: {symbol} - {reason}")
                 
+                else:
+                    self.logger.log(f"  ⚠️  Action {i}: Unknown action '{action}' - Skipping")
+            
             except Exception as e:
-                self.logger.log(f"  ❌ Error executing action: {e}")
+                self.logger.log(f"  ❌ Action {i}: Error executing action: {e}")
                 import traceback
-                self.logger.log(traceback.format_exc())
+                traceback.print_exc()
     
     def run_iteration(self):
         """Run one iteration of the trading loop"""
@@ -179,37 +186,47 @@ class AdvancedTradingBot:
         
         self.logger.log(f"\n--- Iteration {self.iteration_count} ---")
         
-        # 1. Fetch current prices
+        # 1. Get current prices
         current_prices = self.api.get_multiple_prices(TRADING_PAIRS)
         if not current_prices:
-            self.logger.log("Failed to fetch prices, skipping iteration")
+            self.logger.log("❌ Failed to fetch prices")
             return
         
-        # Log current prices
         price_str = ", ".join([f"{s}: ${p:,.2f}" for s, p in current_prices.items()])
         self.logger.log(f"Current Prices: {price_str}")
         
-        # 2. Fetch technical analysis data
-        technical_analysis = {}
-        for symbol in TRADING_PAIRS:
-            klines = self.api.get_klines(symbol, interval='1h', limit=100)
-            if klines:
-                technical_analysis[symbol] = analyze_market(klines)
-        
-        # 3. Get portfolio statistics
+        # 2. Get trading statistics
         stats = self.simulator.get_statistics(current_prices)
         open_positions = self.simulator.get_open_positions_summary(current_prices)
         
-        # 4. Update web dashboard
+        # 3. Save state periodically
+        if self.iteration_count % 10 == 0:
+            self._save_state()
+        
+        # 4. Update history data for charts
+        timestamp = datetime.now().isoformat()
+        
+        # Update value history
+        self.value_history.append({
+            'timestamp': timestamp,
+            'value': stats['total_value']
+        })
+        
+        # Update price history
+        for symbol, price in current_prices.items():
+            if symbol not in self.price_history:
+                self.price_history[symbol] = []
+            self.price_history[symbol].append({
+                'timestamp': timestamp,
+                'price': price
+            })
+        
+        # 5. Update web dashboard (pass complete history)
         closed_trades = [pos.to_dict() for pos in self.simulator.closed_positions]
-        update_trading_data(current_prices, open_positions, stats, closed_trades)
+        update_trading_data(current_prices, open_positions, stats, closed_trades,
+                          self.value_history, self.price_history)
         
-        # Log periodic statistics
-        if self.iteration_count % 5 == 0:
-            self.logger.print_summary(stats, current_prices)
-            self.logger.log_statistics(stats)
-        
-        # 5. Check if we should request LLM decision
+        # 6. Check if we should request LLM decision
         time_since_last = current_time - self.last_decision_time
         should_decide, trigger_reason = self.agent.should_request_decision(
             current_prices, 
@@ -222,36 +239,36 @@ class AdvancedTradingBot:
         if should_decide:
             self.logger.log(f"\n=== Requesting LLM Decision (Trigger: {trigger_reason}) ===")
             
-            # Create detailed market prompt
-            market_prompt = self.agent.create_detailed_market_prompt(
-                current_prices,
-                technical_analysis,
-                stats,
-                open_positions
+            # Get market analysis for all pairs
+            market_data = {}
+            for symbol in TRADING_PAIRS:
+                klines = self.api.get_klines(symbol, interval='15m', limit=100)
+                if klines:
+                    market_data[symbol] = analyze_market(klines)
+            
+            # Request LLM decision
+            decision = self.agent.make_decision(
+                current_prices=current_prices,
+                open_positions=open_positions,
+                account_balance=stats['current_capital'],
+                market_data=market_data
             )
             
-            # Get LLM decision
-            max_position_size = min(stats['current_capital'] * 0.2, 200)
-            decision = self.agent.make_decision(market_prompt, max_position_size)
-            
-            # Log decision
-            summary = decision.get('summary', 'No summary')
-            chain_of_thought = decision.get('chain_of_thought', {})
-            actions = decision.get('actions', [])
-            
-            self.logger.log(f"\n🤖 LLM Summary: {summary}")
-            self.logger.log(f"📊 Chain of Thought: {chain_of_thought}")
-            self.logger.log(f"🎯 Actions: {len(actions)} proposed")
-            
-            # Update web dashboard with LLM conversation
-            update_llm_conversation(summary, market_prompt, chain_of_thought, actions)
-            
-            # Execute actions
-            self.execute_actions(actions, current_prices, chain_of_thought)
+            if decision:
+                # Log LLM conversation for web display
+                self.logger.log(f"🤖 LLM Summary: {decision['summary']}")
+                update_llm_conversation(decision)
+                
+                # Execute actions
+                self.execute_actions(
+                    decision['actions'], 
+                    current_prices,
+                    decision.get('chain_of_thought')
+                )
             
             self.last_decision_time = current_time
         
-        # 6. Update last prices
+        # 7. Update last prices
         self.last_prices = current_prices.copy()
     
     def run(self, sleep_seconds: int = 30):
@@ -265,6 +282,22 @@ class AdvancedTradingBot:
         self.logger.log(f"Sleep between iterations: {sleep_seconds}s")
         self.logger.log(f"Web Dashboard: http://127.0.0.1:5000\n")
         
+        # Initialize web dashboard with loaded state
+        # This ensures the dashboard shows data immediately on startup
+        try:
+            current_prices = self.api.get_multiple_prices(TRADING_PAIRS)
+            if current_prices:
+                stats = self.simulator.get_statistics(current_prices)
+                open_positions = self.simulator.get_open_positions_summary(current_prices)
+                closed_trades = [pos.to_dict() for pos in self.simulator.closed_positions]
+                
+                # Send initial data to web server (including loaded history)
+                update_trading_data(current_prices, open_positions, stats, closed_trades,
+                                  self.value_history, self.price_history)
+                self.logger.log("✅ Initial state sent to web dashboard")
+        except Exception as e:
+            self.logger.log(f"⚠️  Failed to initialize web dashboard: {e}")
+        
         try:
             while self.running:
                 self.run_iteration()
@@ -274,35 +307,27 @@ class AdvancedTradingBot:
             self.logger.log("\nKeyboard interrupt received")
         
         except Exception as e:
-            self.logger.log(f"\nUnexpected error: {e}")
+            self.logger.log(f"\n❌ Error: {e}")
             import traceback
-            self.logger.log(traceback.format_exc())
+            traceback.print_exc()
         
         finally:
             self.shutdown()
     
     def shutdown(self):
-        """Graceful shutdown"""
-        self.logger.log("\n=== Shutting Down ===")
+        """Clean shutdown"""
+        self.logger.log("\n=== Bot Shutting Down ===")
         
-        # Close all positions
-        current_prices = self.api.get_multiple_prices(TRADING_PAIRS)
-        if current_prices and self.simulator.open_positions:
-            self.logger.log("Closing all open positions...")
-            self.simulator.close_all_positions(current_prices)
-            
-            for trade in self.simulator.trade_history[-len(self.simulator.closed_positions):]:
-                self.logger.log_trade(trade)
-        
-        # Save state before exit
-        self.logger.log("Saving state...")
+        # Final save
         self._save_state()
         
-        # Final statistics
-        if current_prices:
-            self.logger.create_final_report(self.simulator, current_prices)
+        # Close all positions if requested
+        # current_prices = self.api.get_multiple_prices(TRADING_PAIRS)
+        # if current_prices:
+        #     self.simulator.close_all_positions(current_prices)
         
-        self.logger.log("=== Trading Bot Stopped ===")
+        self.logger.log("Goodbye!")
+        self.running = False
 
 
 def run_bot_in_thread(bot: AdvancedTradingBot):
@@ -313,14 +338,14 @@ def run_bot_in_thread(bot: AdvancedTradingBot):
 def main():
     """Main entry point"""
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Advanced LLM Crypto Trading Bot')
+    parser = argparse.ArgumentParser(description='Advanced LLM Crypto Trading Bot (Simulator)')
     parser.add_argument('--restart', action='store_true', 
                        help='Start fresh, ignoring any saved state')
     args = parser.parse_args()
     
     print("""
 ╔════════════════════════════════════════════════════════════╗
-║    Advanced LLM Crypto Trading Bot with Model Chat        ║
+║    Advanced LLM Crypto Trading Bot (模拟器版本)            ║
 ║                                                            ║
 ║  Web Dashboard: http://127.0.0.1:5000                     ║
 ║  - Left: Stats & Charts                                   ║

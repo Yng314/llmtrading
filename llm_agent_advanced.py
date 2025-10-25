@@ -91,9 +91,16 @@ CURRENT MARKET STATE FOR ALL COINS
         
         return prompt
     
-    def make_decision(self, market_prompt: str, max_position_size: float) -> Dict:
+    def make_decision(self, current_prices: Dict, open_positions: List, 
+                     account_balance: float, market_data: Dict) -> Dict:
         """
         Make trading decision with structured output
+        
+        Args:
+            current_prices: Current prices for all trading pairs
+            open_positions: List of current open positions
+            account_balance: Available cash balance
+            market_data: Technical analysis data for all pairs
         
         Returns:
             {
@@ -103,6 +110,28 @@ CURRENT MARKET STATE FOR ALL COINS
             }
         """
         self.decision_count += 1
+        
+        # Build portfolio stats for prompt
+        portfolio_stats = {
+            'current_capital': account_balance,
+            'total_value': account_balance,  # Will be updated if we have positions
+            'roi_percent': 0,
+            'total_trades': 0,
+            'winning_trades': 0,
+            'losing_trades': 0,
+            'win_rate': 0
+        }
+        
+        # Calculate max position size
+        max_position_size = account_balance * 0.25  # 25% of available capital
+        
+        # Build market prompt
+        market_prompt = self.create_detailed_market_prompt(
+            current_prices=current_prices,
+            technical_analysis=market_data,
+            portfolio_stats=portfolio_stats,
+            open_positions=open_positions
+        )
         
         system_prompt = """You are an AGGRESSIVE cryptocurrency trader with deep knowledge of technical analysis, market dynamics, and leveraged trading.
 
@@ -202,6 +231,9 @@ IMPORTANT:
             decision.setdefault('chain_of_thought', {})
             decision.setdefault('actions', [])
             
+            # Add user_prompt for web display
+            decision['user_prompt'] = market_prompt
+            
             self.last_decision = {
                 'timestamp': datetime.now(),
                 'decision': decision,
@@ -215,14 +247,16 @@ IMPORTANT:
             return {
                 'summary': 'Error: Could not parse LLM response',
                 'chain_of_thought': {},
-                'actions': []
+                'actions': [],
+                'user_prompt': market_prompt
             }
         except Exception as e:
             print(f"Error getting LLM decision: {e}")
             return {
                 'summary': f'Error: {str(e)}',
                 'chain_of_thought': {},
-                'actions': []
+                'actions': [],
+                'user_prompt': market_prompt if 'market_prompt' in locals() else ''
             }
     
     def should_request_decision(self, current_prices: Dict, last_prices: Dict,

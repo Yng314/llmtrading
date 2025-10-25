@@ -544,9 +544,9 @@
                 updatePositions(data.positions);
                 updateTrades(data.trades);
                 
-                // Only update chat if there are new conversations
+                // Always update chat to handle empty state correctly
                 const currentCount = data.llm_conversations ? data.llm_conversations.length : 0;
-                if (currentCount !== lastConversationCount) {
+                if (currentCount !== lastConversationCount || currentCount === 0) {
                     updateLLMChat(data.llm_conversations);
                     lastConversationCount = currentCount;
                 }
@@ -591,8 +591,8 @@
             unrealizedEl.textContent = (totalUnrealizedPnl >= 0 ? '+$' : '-$') + Math.abs(totalUnrealizedPnl).toFixed(2);
             unrealizedEl.className = 'pnl ' + (totalUnrealizedPnl >= 0 ? 'positive' : 'negative');
             
-            const totalCalc = (stats.current_capital || 0) + totalMargin + totalUnrealizedPnl;
-            document.getElementById('totalCalc').textContent = '$' + totalCalc.toFixed(2);
+            // Use total_value from Binance API (already includes everything)
+            document.getElementById('totalCalc').textContent = '$' + (stats.total_value || 0).toFixed(2);
         }
 
         function updateValueChart(history) {
